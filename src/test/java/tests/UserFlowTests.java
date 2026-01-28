@@ -8,7 +8,7 @@ import pages.LoginSignupPage;
 import pages.ProductsPage;
 import utils.TestData;
 
-public class Tests extends BaseTest {
+public class UserFlowTests extends BaseTest {
 
     @Test
     void Task1_OpenWebsite_PrintTitle() {

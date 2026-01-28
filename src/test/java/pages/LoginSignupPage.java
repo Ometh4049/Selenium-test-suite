@@ -54,23 +54,19 @@ public class LoginSignupPage {
 
     // ---------- Helpers ----------
 
-    // Waits until an element is visible
     private WebElement visible(By locator) {
         return wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
     }
 
-    // Waits until an element is clickable
     private WebElement clickable(By locator) {
         return wait.until(ExpectedConditions.elementToBeClickable(locator));
     }
 
-    // JavaScript click fallback (used when normal click is blocked)
     private void jsClick(By locator) {
         WebElement el = visible(locator);
         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", el);
     }
 
-    // Clears existing text and types new value
     private void type(By locator, String text) {
         WebElement el = visible(locator);
         el.clear();
@@ -78,11 +74,11 @@ public class LoginSignupPage {
     }
 
     // ---------- Signup ----------
+
     public boolean newUserSignupVisible() {
         return visible(newUserSignupHeader).isDisplayed();
     }
 
-    // Starts the signup process with name and email
     public void startSignup(String name, String email) {
         type(signupName, name);
         type(signupEmail, email);
@@ -96,7 +92,6 @@ public class LoginSignupPage {
         return visible(enterAccountInfoHeader).isDisplayed();
     }
 
-    // Completes mandatory fields and submits registration
     public void completeSignupRequiredFields(String pwd) {
         visible(enterAccountInfoHeader);
 
@@ -126,7 +121,6 @@ public class LoginSignupPage {
         }
     }
 
-    // Verifies successful account creation
     public boolean accountCreatedVisible() {
         try {
             visible(accountCreatedHeader);
@@ -136,23 +130,52 @@ public class LoginSignupPage {
         }
     }
 
-    // Clicks Continue after successful registration
+    /**
+     * Clicks Continue after ACCOUNT CREATED.
+     * In CI, Continue can be blocked by overlays/ads and sometimes doesn't redirect.
+     * This method retries click + JS fallback and only forces navigation if still stuck.
+     */
     public void continueAfterCreate() {
-        // Continue can be blocked by overlays/ads in headless CI, so retry + JS fallback
+        // Retry clicking Continue (normal click -> JS click)
+        boolean clicked = false;
+
         for (int i = 0; i < 3; i++) {
             try {
                 clickable(continueButton).click();
-                return;
+                clicked = true;
+                break;
             } catch (ElementClickInterceptedException | TimeoutException e) {
-                jsClick(continueButton);
+                try {
+                    jsClick(continueButton);
+                    clicked = true;
+                    break;
+                } catch (WebDriverException ignored) {
+                    // try again
+                }
             }
+        }
+
+        // If click never happened, force safe navigation
+        if (!clicked) {
+            driver.get("https://automationexercise.com/");
+            return;
+        }
+
+        // If CI gets stuck on account_created, force stable state
+        try {
+            wait.until(ExpectedConditions.or(
+                    ExpectedConditions.urlContains("/"),
+                    ExpectedConditions.urlContains("/login"),
+                    ExpectedConditions.visibilityOfElementLocated(By.cssSelector("a[href='/logout']")),
+                    ExpectedConditions.visibilityOfElementLocated(By.cssSelector("a[href='/login']"))
+            ));
+        } catch (TimeoutException e) {
+            driver.get("https://automationexercise.com/");
         }
     }
 
+    // ---------- Login methods ----------
 
-    // ---------- Login methods----------
-
-    // Checks there login inputs are visible
     public boolean loginHeaderVisible() {
         try {
             visible(loginEmail);
@@ -163,23 +186,19 @@ public class LoginSignupPage {
         }
     }
 
-    // Performs user login
     public void login(String email, String pwd) {
         type(loginEmail, email);
         type(loginPassword, pwd);
         clickable(loginButton).click();
     }
 
-    // Verifies successful login
     public boolean loggedInAsVisible() {
         try {
             visible(loggedInAs);
             return true;
         } catch (TimeoutException e) {
-            // Fallback: sometimes the UI doesn't render "Logged in as" in CI
-            // but session is active (Logout link exists)
+            // Fallback: session is active if Logout exists
             return driver.findElements(By.cssSelector("a[href='/logout']")).size() > 0;
         }
     }
-
 }

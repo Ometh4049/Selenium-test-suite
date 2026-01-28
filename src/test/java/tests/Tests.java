@@ -10,20 +10,20 @@ import utils.TestData;
 
 public class Tests extends BaseTest {
 
-
     @Test
-    void Task1_OpenWebsite_PrintTitle(){
+    void Task1_OpenWebsite_PrintTitle() {
         HomePage homePage = new HomePage(driver);
         homePage.open();
 
-        System.out.println("Website Title : " + homePage.title());
+        String title = homePage.title();
+        System.out.println("Website Title: " + title);
 
         Assertions.assertTrue(homePage.isLoaded(), "Home page should load");
-        Assertions.assertFalse(homePage.title().isBlank(), "Title should not be blank");
+        Assertions.assertFalse(title.isBlank(), "Title should not be blank");
     }
 
     @Test
-    void Task2_UserRegistration_VerifySuccess(){
+    void Task2_UserRegistration_VerifySuccess() {
         String email = TestData.uniqueEmail();
 
         HomePage homePage = new HomePage(driver);
@@ -36,34 +36,59 @@ public class Tests extends BaseTest {
         page.startSignup(TestData.NAME, email);
         Assertions.assertTrue(page.enterAccountInfoVisible(), "'Enter Account Information' should be visible");
 
-        page.completeSignupMinimal(TestData.PASSWORD);
-        Assertions.assertTrue(page.accountCreatedVisible(), "'ACCOUNT CREATED!' should be visible");
+        page.completeSignupRequiredFields(TestData.PASSWORD);
+
+        System.out.println("URL after Create Account: " + driver.getCurrentUrl());
+        System.out.println("Page title after Create Account: " + driver.getTitle());
+
+        Assertions.assertTrue(page.accountCreatedVisible(), "Expected ACCOUNT CREATED page, but it was not shown");
 
         page.continueAfterCreate();
         Assertions.assertTrue(page.loggedInAsVisible(), "Should show 'Logged in as ...' after registration");
     }
 
     @Test
-    void Task3_UserLogin_VerifyRedirectedToHome(){
-
+    void Task3_UserLogin_VerifyRedirectedToHome() {
+        // 1) Register a fresh user
         String email = TestData.uniqueEmail();
 
         HomePage homePage = new HomePage(driver);
         homePage.open();
         homePage.goToSignupLogin();
 
-        LoginSignupPage loginSignupPage = new LoginSignupPage(driver);
-        loginSignupPage.startSignup(TestData.NAME,email);
-        loginSignupPage.completeSignupMinimal(TestData.PASSWORD);
-        loginSignupPage.continueAfterCreate();
+        LoginSignupPage page = new LoginSignupPage(driver);
+        page.startSignup(TestData.NAME, email);
 
+        Assertions.assertTrue(page.enterAccountInfoVisible(), "'Enter Account Information' should be visible");
+        page.completeSignupRequiredFields(TestData.PASSWORD);
+
+        Assertions.assertTrue(page.accountCreatedVisible(), "User account should be created before login test");
+        page.continueAfterCreate();
+        Assertions.assertTrue(page.loggedInAsVisible(), "User should be logged in after registration");
+
+        // 2) Logout
+        if (homePage.isLogoutVisible()) {
+            homePage.logout();
+        } else {
+            driver.get("https://automationexercise.com/logout");
+        }
+
+        // 3) Go to login page and login again
         driver.get("https://automationexercise.com/login");
+        waitForUrlContains("/login");
 
-        Assertions.assertTrue(loginSignupPage.loginHeaderVisible(), "'Login to your account' should be visible");
-        loginSignupPage.login(email, TestData.PASSWORD);
+        System.out.println("Login page URL: " + driver.getCurrentUrl());
+        System.out.println("Login page Title: " + driver.getTitle());
 
-        Assertions.assertTrue(loginSignupPage.loggedInAsVisible(), "User should be logged in successfully");
+        // If login inputs not visible (overlay issue), refresh once
+        if (!page.loginHeaderVisible()) {
+            hardRefresh();
+        }
 
+        Assertions.assertTrue(page.loginHeaderVisible(), "Login inputs should be visible");
+        page.login(email, TestData.PASSWORD);
+
+        Assertions.assertTrue(page.loggedInAsVisible(), "User should be logged in successfully after login");
     }
 
     @Test
@@ -79,6 +104,6 @@ public class Tests extends BaseTest {
 
         Assertions.assertTrue(productsPage.searchedProductsVisible(), "'Searched Products' should be visible");
         Assertions.assertTrue(productsPage.anyResultContains(TestData.SEARCH_KEYWORD),
-                "At least one product should contain search keyword");
+                "At least one product should contain the search keyword");
     }
 }

@@ -21,8 +21,23 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Run Maven tests
-        run: mvn -q clean test
+      - name: Install Chrome dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libnss3 \
+            libgconf-2-4 \
+            libxi6 \
+            libxrandr2 \
+            libxss1 \
+            libxcursor1 \
+            libxcomposite1 \
+            libasound2 \
+            libatk1.0-0 \
+            libgtk-3-0
+
+      - name: Run Selenium tests
+        run: mvn clean test
 
       - name: Upload screenshots (always)
         if: always()

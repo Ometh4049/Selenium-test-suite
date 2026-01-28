@@ -29,22 +29,24 @@ public class BaseTest {
         ChromeOptions options = new ChromeOptions();
 
         if (isCI) {
-            // Headless for GitHub Actions/Linux runner
             options.addArguments("--headless=new");
             options.addArguments("--no-sandbox");
             options.addArguments("--disable-dev-shm-usage");
             options.addArguments("--disable-gpu");
+            options.addArguments("--disable-extensions");
+            options.addArguments("--disable-infobars");
             options.addArguments("--window-size=1920,1080");
+            options.addArguments("--remote-allow-origins=*");
         }
 
         driver = new ChromeDriver(options);
 
-        driver.manage().window().maximize();
         driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(30));
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(0));
 
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));
     }
+
 
 
     // Runs after each test case

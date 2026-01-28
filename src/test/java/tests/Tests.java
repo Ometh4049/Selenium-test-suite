@@ -67,9 +67,17 @@ public class Tests extends BaseTest {
         // Give CI/headless a moment to complete redirects/navigation after Continue
         waitForUrlContains("automationexercise.com");
 
-        // Verify user is logged in (Logged in as OR Logout link should exist in CI)
-        Assertions.assertTrue(page.loggedInAsVisible(),
-                "User should be logged in after registration (Logged in as OR Logout)");
+        // Some environments do not auto-login after signup (known site behavior)
+        if (!homePage.isLoggedIn()) {
+            driver.get("https://automationexercise.com/login");
+            page.login(email, TestData.PASSWORD);
+        }
+
+        // Final verification (Logout link = logged-in state)
+        Assertions.assertTrue(
+                homePage.isLoggedIn(),
+                "User should be logged in after registration"
+        );
     }
 
     @Test

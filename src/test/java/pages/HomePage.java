@@ -48,6 +48,11 @@ public class HomePage {
         driver.findElement(logoutLink).click();
     }
 
+    public boolean isLoggedIn() {
+        return driver.findElements(logoutLink).size() > 0;
+    }
+
+
     // Checks whether the Logout option is visible
     public boolean isLogoutVisible() {
         return driver.findElements(logoutLink).size() > 0;

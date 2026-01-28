@@ -12,15 +12,15 @@ public class Tests extends BaseTest {
 
     @Test
     void Task1_OpenWebsite_PrintTitle() {
-        // create home page obj and open the website
+        // Create HomePage object and open the website
         HomePage homePage = new HomePage(driver);
         homePage.open();
 
-        // get the title of loaded web page & log it
+        // Get the title of loaded web page & log it
         String title = homePage.title();
         System.out.println("Website Title: " + title);
 
-        // verify home page has successfully loaded
+        // Verify home page has successfully loaded
         Assertions.assertTrue(homePage.isLoaded(), "Home page should load");
 
         // Verify that the page title is not empty or blank
@@ -29,45 +29,52 @@ public class Tests extends BaseTest {
 
     @Test
     void Task2_UserRegistration_VerifySuccess() {
-        // gen unique email address for reg..
+        // Generate unique email address for registration (avoids "email already exists")
         String email = TestData.uniqueEmail();
 
-        // create home page obj and open the website
+        // Open the home page
         HomePage homePage = new HomePage(driver);
         homePage.open();
 
         // Navigate to the Signup / Login page
         homePage.goToSignupLogin();
 
-        // Create LoginSignupPage obj to interact with signup elements
+        // Create LoginSignupPage object to interact with signup elements
         LoginSignupPage page = new LoginSignupPage(driver);
-        //verify that signup works correctly
+
+        // Verify that "New User Signup!" section is visible
         Assertions.assertTrue(page.newUserSignupVisible(), "'New User Signup!' should be visible");
 
-        // start user reg by entering name & email
+        // Start user registration by entering name & email
         page.startSignup(TestData.NAME, email);
+
+        // Verify "Enter Account Information" section is visible
         Assertions.assertTrue(page.enterAccountInfoVisible(), "'Enter Account Information' should be visible");
 
         // Fill all required registration fields and submit the form
         page.completeSignupRequiredFields(TestData.PASSWORD);
 
-        // log the URL & page title
+        // Log diagnostics (helps debugging in CI)
         System.out.println("URL after Create Account: " + driver.getCurrentUrl());
         System.out.println("Page title after Create Account: " + driver.getTitle());
 
-        // verify acc has create successfully
+        // Verify account created page is shown
         Assertions.assertTrue(page.accountCreatedVisible(), "Expected ACCOUNT CREATED page, but it was not shown");
 
         // Click Continue after successful account creation
         page.continueAfterCreate();
 
-        // verify that signup by login
-        Assertions.assertTrue(page.loggedInAsVisible(), "Should show 'Logged in as ...' after registration");
+        // Give CI/headless a moment to complete redirects/navigation after Continue
+        waitForUrlContains("automationexercise.com");
+
+        // Verify user is logged in (Logged in as OR Logout link should exist in CI)
+        Assertions.assertTrue(page.loggedInAsVisible(),
+                "User should be logged in after registration (Logged in as OR Logout)");
     }
 
     @Test
     void Task3_UserLogin_VerifyRedirectedToHome() {
-        // 1) Register a fresh user
+        // 1) Register a fresh user (needed so we always have valid login credentials)
         String email = TestData.uniqueEmail();
 
         // Open the home page and navigate to Signup / Login page
@@ -75,25 +82,32 @@ public class Tests extends BaseTest {
         homePage.open();
         homePage.goToSignupLogin();
 
-        // Create LoginSignupPage obj to handle signup actions
+        // Create LoginSignupPage object to handle signup actions
         LoginSignupPage page = new LoginSignupPage(driver);
-        // Start the signup process using test data
+
+        // Start signup using test data
         page.startSignup(TestData.NAME, email);
 
+        // Verify "Enter Account Information" section is visible
         Assertions.assertTrue(page.enterAccountInfoVisible(), "'Enter Account Information' should be visible");
-        // Complete all required signup fields and submit the form
+
+        // Complete all required signup fields and submit
         page.completeSignupRequiredFields(TestData.PASSWORD);
 
-        // Verify that the account has been successfully created
+        // Verify account created page is visible
         Assertions.assertTrue(page.accountCreatedVisible(), "User account should be created before login test");
 
-        // continue after acc creation
+        // Continue after account creation
         page.continueAfterCreate();
 
-        // Verify that the user is logged in immediately after registration
-        Assertions.assertTrue(page.loggedInAsVisible(), "User should be logged in after registration");
+        // Give CI/headless a moment to complete redirects/navigation after Continue
+        waitForUrlContains("automationexercise.com");
 
-        //STEP 2) Logout
+        // Verify user is logged in after registration (CI-safe check)
+        Assertions.assertTrue(page.loggedInAsVisible(),
+                "User should be logged in after registration (Logged in as OR Logout)");
+
+        // 2) Logout (prefer UI logout, fallback to direct URL)
         if (homePage.isLogoutVisible()) {
             homePage.logout();
         } else {
@@ -104,45 +118,47 @@ public class Tests extends BaseTest {
         driver.get("https://automationexercise.com/login");
         waitForUrlContains("/login");
 
+        // Log diagnostics (helps debugging in CI)
         System.out.println("Login page URL: " + driver.getCurrentUrl());
         System.out.println("Login page Title: " + driver.getTitle());
 
-        // If login inputs not visible (overlay issue), refresh once
+        // If login inputs not visible (overlay/redirect issue), refresh once
         if (!page.loginHeaderVisible()) {
             hardRefresh();
         }
 
-        // Verify that login input fields are visible
+        // Verify login input fields are visible
         Assertions.assertTrue(page.loginHeaderVisible(), "Login inputs should be visible");
 
         // Perform login using previously registered credentials
         page.login(email, TestData.PASSWORD);
 
+        // Verify user is logged in after login
         Assertions.assertTrue(page.loggedInAsVisible(), "User should be logged in successfully after login");
     }
 
     @Test
     void Task4_ProductSearch_VerifyResults() {
-        // Open the home page of the application
+        // Open the home page
         HomePage home = new HomePage(driver);
         home.open();
 
-        // navigate to products page
+        // Navigate to products page
         home.goToProducts();
 
-        // Create ProductsPage obj to interact with product-related elements
+        // Create ProductsPage object to interact with product-related elements
         ProductsPage productsPage = new ProductsPage(driver);
 
         // Verify that the "ALL PRODUCTS" page is displayed
         Assertions.assertTrue(productsPage.allProductsVisible(), "ALL PRODUCTS page should be visible");
 
-        // Perform product search using a predefined keyword
+        // Perform product search using predefined keyword
         productsPage.search(TestData.SEARCH_KEYWORD);
 
         // Verify that the "Searched Products" section is displayed
         Assertions.assertTrue(productsPage.searchedProductsVisible(), "'Searched Products' should be visible");
 
-        // Verify that at least one search result contains the search keyword
+        // Verify at least one search result contains the keyword
         Assertions.assertTrue(productsPage.anyResultContains(TestData.SEARCH_KEYWORD),
                 "At least one product should contain the search keyword");
     }

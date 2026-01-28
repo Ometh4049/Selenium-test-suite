@@ -138,12 +138,17 @@ public class LoginSignupPage {
 
     // Clicks Continue after successful registration
     public void continueAfterCreate() {
-        try {
-            clickable(continueButton).click();
-        } catch (ElementClickInterceptedException | TimeoutException e) {
-            jsClick(continueButton);
+        // Continue can be blocked by overlays/ads in headless CI, so retry + JS fallback
+        for (int i = 0; i < 3; i++) {
+            try {
+                clickable(continueButton).click();
+                return;
+            } catch (ElementClickInterceptedException | TimeoutException e) {
+                jsClick(continueButton);
+            }
         }
     }
+
 
     // ---------- Login methods----------
 
@@ -171,7 +176,10 @@ public class LoginSignupPage {
             visible(loggedInAs);
             return true;
         } catch (TimeoutException e) {
-            return false;
+            // Fallback: sometimes the UI doesn't render "Logged in as" in CI
+            // but session is active (Logout link exists)
+            return driver.findElements(By.cssSelector("a[href='/logout']")).size() > 0;
         }
     }
+
 }

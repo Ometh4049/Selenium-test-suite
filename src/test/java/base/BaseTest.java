@@ -14,12 +14,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 public class BaseTest {
     protected WebDriver driver;
     protected WebDriverWait wait;
 
-    // Runs before each test case
     @BeforeEach
     void setup() {
         WebDriverManager.chromedriver().setup();
@@ -28,6 +29,17 @@ public class BaseTest {
 
         ChromeOptions options = new ChromeOptions();
 
+        // Stable defaults (good for local + CI)
+        options.addArguments("--window-size=1920,1080");
+        options.addArguments("--remote-allow-origins=*");
+
+        // Reduce automation banners/notifications
+        Map<String, Object> prefs = new HashMap<>();
+        prefs.put("profile.default_content_setting_values.notifications", 2);
+        prefs.put("credentials_enable_service", false);
+        prefs.put("profile.password_manager_enabled", false);
+        options.setExperimentalOption("prefs", prefs);
+
         if (isCI) {
             options.addArguments("--headless=new");
             options.addArguments("--no-sandbox");
@@ -35,53 +47,66 @@ public class BaseTest {
             options.addArguments("--disable-gpu");
             options.addArguments("--disable-extensions");
             options.addArguments("--disable-infobars");
-            options.addArguments("--window-size=1920,1080");
-            options.addArguments("--remote-allow-origins=*");
+            options.addArguments("--disable-popup-blocking");
         }
 
         driver = new ChromeDriver(options);
 
-        driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(30));
+        // Timeouts: CI needs more breathing room than local
+        driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(0));
 
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));
     }
 
-
-
-    // Runs after each test case
     @AfterEach
     void tearDown(TestInfo testInfo) {
-        // Capture screenshot for test evidence
+        // Always try to capture evidence, but never fail teardown because of it
         screenshot(testInfo.getDisplayName());
 
-        // Close browser safely
-        if (driver != null) driver.quit();
+        if (driver != null) {
+            try {
+                driver.quit();
+            } catch (WebDriverException ignored) {}
+        }
     }
 
-    // Save screenshots automatically
     protected void screenshot(String name) {
         try {
+            if (driver == null) return;
+
             Files.createDirectories(new File("screenshots").toPath());
             File src = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
             Files.copy(src.toPath(), new File("screenshots/" + safe(name) + ".png").toPath());
         } catch (IOException | WebDriverException ignored) {
-            // Ignore failures to avoid masking test results
+            // Intentionally ignore to avoid masking test results
         }
     }
 
-    // Makes file names OS-safe
     private String safe(String s) {
         return s.replaceAll("[^a-zA-Z0-9-_\\.]", "_");
     }
 
-    // Forces a full page reload (useful for flaky pages)
     protected void hardRefresh() {
         driver.navigate().refresh();
+        waitForDomReady();
     }
 
-    // Waits until URL contains expected value
     protected void waitForUrlContains(String part) {
         wait.until(ExpectedConditions.urlContains(part));
+    }
+
+    protected WebElement waitForVisible(By locator) {
+        return wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+    }
+
+    protected void waitForDomReady() {
+        try {
+            wait.until(d ->
+                    ((JavascriptExecutor) d).executeScript("return document.readyState").equals("complete")
+            );
+        } catch (TimeoutException ignored) {
+            // Don't hard fail; some pages keep loading trackers forever in CI
+        }
     }
 }

@@ -18,23 +18,31 @@ public class BaseTest {
     protected WebDriver driver;
     protected WebDriverWait wait;
 
+    // Runs before each test case
     @BeforeEach
     void setup() {
+        // auto downloads and configures ChromeDriver
         WebDriverManager.chromedriver().setup();
         driver = new ChromeDriver();
 
+        // Browser configuration
         driver.manage().window().maximize();
         driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(30));
 
-        // IMPORTANT: don't mix implicit + explicit waits
+        // Explicit waits only
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(0));
 
+        // Common explicit wait instance
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));
     }
 
+    // Runs after each test case
     @AfterEach
     void tearDown(TestInfo testInfo) {
+        // Capture screenshot for test evidence
         screenshot(testInfo.getDisplayName());
+
+        // Close browser safely
         if (driver != null) driver.quit();
     }
 
@@ -45,17 +53,21 @@ public class BaseTest {
             File src = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
             Files.copy(src.toPath(), new File("screenshots/" + safe(name) + ".png").toPath());
         } catch (IOException | WebDriverException ignored) {
+            // Ignore failures to avoid masking test results
         }
     }
 
+    // Makes file names OS-safe
     private String safe(String s) {
         return s.replaceAll("[^a-zA-Z0-9-_\\.]", "_");
     }
 
+    // Forces a full page reload (useful for flaky pages)
     protected void hardRefresh() {
         driver.navigate().refresh();
     }
 
+    // Waits until URL contains expected value
     protected void waitForUrlContains(String part) {
         wait.until(ExpectedConditions.urlContains(part));
     }

@@ -35,6 +35,7 @@ public class LoginSignupPage {
 
     private final By createAccountButton = By.cssSelector("button[data-qa='create-account']");
 
+    // Account created confirmation
     private final By accountCreatedHeader =
             By.xpath("//b[contains(translate(.,'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),'ACCOUNT CREATED')]");
     private final By continueButton = By.cssSelector("a[data-qa='continue-button']");
@@ -52,19 +53,24 @@ public class LoginSignupPage {
     }
 
     // ---------- Helpers ----------
+
+    // Waits until an element is visible
     private WebElement visible(By locator) {
         return wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
     }
 
+    // Waits until an element is clickable
     private WebElement clickable(By locator) {
         return wait.until(ExpectedConditions.elementToBeClickable(locator));
     }
 
+    // JavaScript click fallback (used when normal click is blocked)
     private void jsClick(By locator) {
         WebElement el = visible(locator);
         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", el);
     }
 
+    // Clears existing text and types new value
     private void type(By locator, String text) {
         WebElement el = visible(locator);
         el.clear();
@@ -76,11 +82,13 @@ public class LoginSignupPage {
         return visible(newUserSignupHeader).isDisplayed();
     }
 
+    // Starts the signup process with name and email
     public void startSignup(String name, String email) {
         type(signupName, name);
         type(signupEmail, email);
         clickable(signupButton).click();
 
+        // Ensure account information form is loaded
         visible(enterAccountInfoHeader);
     }
 
@@ -88,6 +96,7 @@ public class LoginSignupPage {
         return visible(enterAccountInfoHeader).isDisplayed();
     }
 
+    // Completes mandatory fields and submits registration
     public void completeSignupRequiredFields(String pwd) {
         visible(enterAccountInfoHeader);
 
@@ -109,6 +118,7 @@ public class LoginSignupPage {
         type(zipcode, "10000");
         type(mobileNumber, "771234567");
 
+        // Submit account creation form
         try {
             clickable(createAccountButton).click();
         } catch (ElementClickInterceptedException | TimeoutException e) {
@@ -116,6 +126,7 @@ public class LoginSignupPage {
         }
     }
 
+    // Verifies successful account creation
     public boolean accountCreatedVisible() {
         try {
             visible(accountCreatedHeader);
@@ -125,6 +136,7 @@ public class LoginSignupPage {
         }
     }
 
+    // Clicks Continue after successful registration
     public void continueAfterCreate() {
         try {
             clickable(continueButton).click();
@@ -133,7 +145,9 @@ public class LoginSignupPage {
         }
     }
 
-    // ---------- Login ----------
+    // ---------- Login methods----------
+
+    // Checks there login inputs are visible
     public boolean loginHeaderVisible() {
         try {
             visible(loginEmail);
@@ -144,12 +158,14 @@ public class LoginSignupPage {
         }
     }
 
+    // Performs user login
     public void login(String email, String pwd) {
         type(loginEmail, email);
         type(loginPassword, pwd);
         clickable(loginButton).click();
     }
 
+    // Verifies successful login
     public boolean loggedInAsVisible() {
         try {
             visible(loggedInAs);

@@ -73,7 +73,7 @@ public class Tests extends BaseTest {
             page.login(email, TestData.PASSWORD);
         }
 
-        // Final verification (Logout link = logged-in state)
+        // Final verification(Logout link = logged-in state)
         Assertions.assertTrue(
                 homePage.isLoggedIn(),
                 "User should be logged in after registration"

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
@@ -21,20 +22,30 @@ public class BaseTest {
     // Runs before each test case
     @BeforeEach
     void setup() {
-        // auto downloads and configures ChromeDriver
         WebDriverManager.chromedriver().setup();
-        driver = new ChromeDriver();
 
-        // Browser configuration
+        boolean isCI = "true".equalsIgnoreCase(System.getenv("CI"));
+
+        ChromeOptions options = new ChromeOptions();
+
+        if (isCI) {
+            // Headless for GitHub Actions/Linux runner
+            options.addArguments("--headless=new");
+            options.addArguments("--no-sandbox");
+            options.addArguments("--disable-dev-shm-usage");
+            options.addArguments("--disable-gpu");
+            options.addArguments("--window-size=1920,1080");
+        }
+
+        driver = new ChromeDriver(options);
+
         driver.manage().window().maximize();
         driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(30));
-
-        // Explicit waits only
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(0));
 
-        // Common explicit wait instance
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));
     }
+
 
     // Runs after each test case
     @AfterEach

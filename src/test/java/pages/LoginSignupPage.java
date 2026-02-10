@@ -1,17 +1,15 @@
 package pages;
 
 import org.openqa.selenium.*;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.Select;
-import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.support.ui.*;
 
 import java.time.Duration;
+import java.util.Set;
 
 public class LoginSignupPage {
     private final WebDriver driver;
     private final WebDriverWait wait;
 
-    // --- Signup/account info locators ---
     private final By newUserSignupHeader = By.xpath("//h2[contains(.,'New User Signup')]");
     private final By signupName = By.cssSelector("input[data-qa='signup-name']");
     private final By signupEmail = By.cssSelector("input[data-qa='signup-email']");
@@ -35,24 +33,22 @@ public class LoginSignupPage {
 
     private final By createAccountButton = By.cssSelector("button[data-qa='create-account']");
 
-    // Account created confirmation
     private final By accountCreatedHeader =
             By.xpath("//b[contains(translate(.,'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),'ACCOUNT CREATED')]");
     private final By continueButton = By.cssSelector("a[data-qa='continue-button']");
 
-    // --- Login locators ---
     private final By loginEmail = By.cssSelector("input[data-qa='login-email']");
     private final By loginPassword = By.cssSelector("input[data-qa='login-password']");
     private final By loginButton = By.cssSelector("button[data-qa='login-button']");
-
     private final By loggedInAs = By.xpath("//a[contains(.,'Logged in as')]");
+
+    // Common ad close button (site sometimes shows overlays)
+    private final By adClose = By.cssSelector(".modal .close, .close-modal, .btn-close");
 
     public LoginSignupPage(WebDriver driver) {
         this.driver = driver;
-        this.wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(20));
     }
-
-    // ---------- Helpers ----------
 
     private WebElement visible(By locator) {
         return wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
@@ -62,8 +58,7 @@ public class LoginSignupPage {
         return wait.until(ExpectedConditions.elementToBeClickable(locator));
     }
 
-    private void jsClick(By locator) {
-        WebElement el = visible(locator);
+    private void jsClick(WebElement el) {
         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", el);
     }
 
@@ -73,8 +68,6 @@ public class LoginSignupPage {
         el.sendKeys(text);
     }
 
-    // ---------- Signup ----------
-
     public boolean newUserSignupVisible() {
         return visible(newUserSignupHeader).isDisplayed();
     }
@@ -83,8 +76,6 @@ public class LoginSignupPage {
         type(signupName, name);
         type(signupEmail, email);
         clickable(signupButton).click();
-
-        // Ensure account information form is loaded
         visible(enterAccountInfoHeader);
     }
 
@@ -105,7 +96,6 @@ public class LoginSignupPage {
         type(firstName, "Ometh");
         type(lastName, "Test");
         type(address1, "No 123, Main Street");
-
         new Select(visible(country)).selectByVisibleText("India");
 
         type(state, "Western");
@@ -113,11 +103,10 @@ public class LoginSignupPage {
         type(zipcode, "10000");
         type(mobileNumber, "771234567");
 
-        // Submit account creation form
         try {
             clickable(createAccountButton).click();
-        } catch (ElementClickInterceptedException | TimeoutException e) {
-            jsClick(createAccountButton);
+        } catch (Exception e) {
+            jsClick(visible(createAccountButton));
         }
     }
 
@@ -130,51 +119,46 @@ public class LoginSignupPage {
         }
     }
 
-    /**
-     * Clicks Continue after ACCOUNT CREATED.
-     * In CI, Continue can be blocked by overlays/ads and sometimes doesn't redirect.
-     * This method retries click + JS fallback and only forces navigation if still stuck.
-     */
     public void continueAfterCreate() {
-        // Retry clicking Continue (normal click -> JS click)
-        boolean clicked = false;
+        // Sometimes "Continue" opens a new tab or is blocked by an overlay.
+        String originalWindow = driver.getWindowHandle();
+        Set<String> before = driver.getWindowHandles();
 
-        for (int i = 0; i < 3; i++) {
+        // Try to close overlay if present
+        tryCloseOverlay();
+
+        // Try normal click, then JS click
+        try {
+            clickable(continueButton).click();
+        } catch (Exception e) {
             try {
-                clickable(continueButton).click();
-                clicked = true;
-                break;
-            } catch (ElementClickInterceptedException | TimeoutException e) {
-                try {
-                    jsClick(continueButton);
-                    clicked = true;
-                    break;
-                } catch (WebDriverException ignored) {
-                    // try again
+                WebElement btn = driver.findElement(continueButton);
+                jsClick(btn);
+            } catch (Exception ignored) {}
+        }
+
+        // If new tab opened, switch back / close it
+        Set<String> after = driver.getWindowHandles();
+        if (after.size() > before.size()) {
+            for (String w : after) {
+                if (!w.equals(originalWindow)) {
+                    driver.switchTo().window(w);
+                    driver.close();
                 }
             }
+            driver.switchTo().window(originalWindow);
         }
 
-        // If click never happened, force safe navigation
-        if (!clicked) {
-            driver.get("https://automationexercise.com/");
-            return;
-        }
-
-        // If CI gets stuck on account_created, force stable state
-        try {
-            wait.until(ExpectedConditions.or(
-                    ExpectedConditions.urlContains("/"),
-                    ExpectedConditions.urlContains("/login"),
-                    ExpectedConditions.visibilityOfElementLocated(By.cssSelector("a[href='/logout']")),
-                    ExpectedConditions.visibilityOfElementLocated(By.cssSelector("a[href='/login']"))
-            ));
-        } catch (TimeoutException e) {
-            driver.get("https://automationexercise.com/");
-        }
+        // If we’re still stuck, just go to home to stabilize state
+        driver.navigate().to("https://automationexercise.com/");
     }
 
-    // ---------- Login methods ----------
+    private void tryCloseOverlay() {
+        try {
+            WebElement close = driver.findElement(adClose);
+            jsClick(close);
+        } catch (Exception ignored) {}
+    }
 
     public boolean loginHeaderVisible() {
         try {
@@ -197,7 +181,7 @@ public class LoginSignupPage {
             visible(loggedInAs);
             return true;
         } catch (TimeoutException e) {
-            // Fallback: session is active if Logout exists
+            // Fallback: logout link exists => logged in
             return driver.findElements(By.cssSelector("a[href='/logout']")).size() > 0;
         }
     }

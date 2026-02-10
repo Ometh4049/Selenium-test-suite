@@ -7,6 +7,7 @@ import org.junit.jupiter.api.TestInfo;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.PageLoadStrategy;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
@@ -14,8 +15,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
 
 public class BaseTest {
     protected WebDriver driver;
@@ -25,88 +24,99 @@ public class BaseTest {
     void setup() {
         WebDriverManager.chromedriver().setup();
 
-        boolean isCI = "true".equalsIgnoreCase(System.getenv("CI"));
-
         ChromeOptions options = new ChromeOptions();
 
-        // Stable defaults (good for local + CI)
-        options.addArguments("--window-size=1920,1080");
-        options.addArguments("--remote-allow-origins=*");
+        // Prefer NORMAL locally to reduce "blank/white" during eager navigation
+        options.setPageLoadStrategy(PageLoadStrategy.NORMAL);
 
-        // Reduce automation banners/notifications
-        Map<String, Object> prefs = new HashMap<>();
-        prefs.put("profile.default_content_setting_values.notifications", 2);
-        prefs.put("credentials_enable_service", false);
-        prefs.put("profile.password_manager_enabled", false);
-        options.setExperimentalOption("prefs", prefs);
+        // Stability flags
+        options.addArguments("--disable-notifications");
+        options.addArguments("--disable-popup-blocking");
+        options.addArguments("--disable-extensions");
+        options.addArguments("--disable-blink-features=AutomationControlled");
 
-        if (isCI) {
-            options.addArguments("--headless=new");
-            options.addArguments("--no-sandbox");
-            options.addArguments("--disable-dev-shm-usage");
-            options.addArguments("--disable-gpu");
-            options.addArguments("--disable-extensions");
-            options.addArguments("--disable-infobars");
-            options.addArguments("--disable-popup-blocking");
-        }
+        // If you ever run headless again, white screens reduce with these:
+        // options.addArguments("--headless=new");
+        // options.addArguments("--window-size=1920,1080");
+        // options.addArguments("--disable-gpu");
 
         driver = new ChromeDriver(options);
+        driver.manage().window().maximize();
 
-        // Timeouts: CI needs more breathing room than local
-        driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
+        driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(40));
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(0));
 
-        wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+        wait = new WebDriverWait(driver, Duration.ofSeconds(25));
     }
 
     @AfterEach
     void tearDown(TestInfo testInfo) {
-        // Always try to capture evidence, but never fail teardown because of it
-        screenshot(testInfo.getDisplayName());
-
-        if (driver != null) {
-            try {
-                driver.quit();
-            } catch (WebDriverException ignored) {}
-        }
+        // Optional: keep a final always
+        screenshot(testInfo.getDisplayName() + "__FINAL");
+        if (driver != null) driver.quit();
     }
 
-    protected void screenshot(String name) {
+    // Use this for navigation to reduce renderer timeouts
+    protected void safeGet(String url) {
         try {
-            if (driver == null) return;
-
-            Files.createDirectories(new File("screenshots").toPath());
-            File src = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            Files.copy(src.toPath(), new File("screenshots/" + safe(name) + ".png").toPath());
-        } catch (IOException | WebDriverException ignored) {
-            // Intentionally ignore to avoid masking test results
+            driver.navigate().to(url);
+            waitForPageStable();
+        } catch (TimeoutException e) {
+            // stop loading then continue
+            try { ((JavascriptExecutor) driver).executeScript("window.stop();"); } catch (Exception ignored) {}
+            driver.navigate().to(url);
+            waitForPageStable();
         }
-    }
-
-    private String safe(String s) {
-        return s.replaceAll("[^a-zA-Z0-9-_\\.]", "_");
-    }
-
-    protected void hardRefresh() {
-        driver.navigate().refresh();
-        waitForDomReady();
     }
 
     protected void waitForUrlContains(String part) {
         wait.until(ExpectedConditions.urlContains(part));
     }
 
-    protected WebElement waitForVisible(By locator) {
-        return wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+    protected void hardRefresh() {
+        driver.navigate().refresh();
+        waitForPageStable();
     }
 
-    protected void waitForDomReady() {
+    //  Click helper (no invalid multi-catch)
+    protected void safeClick(By locator) {
+        WebElement el = wait.until(ExpectedConditions.elementToBeClickable(locator));
         try {
-            wait.until(d ->
-                    ((JavascriptExecutor) d).executeScript("return document.readyState").equals("complete")
-            );
-        } catch (TimeoutException ignored) {
-            // Don't hard fail; some pages keep loading trackers forever in CI
+            el.click();
+        } catch (WebDriverException e) {
+            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", el);
         }
+    }
+
+    //  Call this before taking screenshots to avoid WHITE images
+    protected void waitForPageStable() {
+        // 1) DOM ready
+        wait.until(d -> "complete".equals(
+                ((JavascriptExecutor) d).executeScript("return document.readyState")
+        ));
+
+        // 2) Body visible (ensures something is painted)
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.tagName("body")));
+
+        // 3) tiny settle time (helps on ad-heavy pages)
+        try { Thread.sleep(250); } catch (InterruptedException ignored) {}
+    }
+
+    //  Take a step screenshot: START / END, etc.
+    protected void stepScreenshot(String testName, String step) {
+        waitForPageStable();
+        screenshot(testName + "__" + step);
+    }
+
+    protected void screenshot(String name) {
+        try {
+            Files.createDirectories(new File("screenshots").toPath());
+            File src = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+            Files.copy(src.toPath(), new File("screenshots/" + safe(name) + ".png").toPath());
+        } catch (IOException | WebDriverException ignored) {}
+    }
+
+    private String safe(String s) {
+        return s.replaceAll("[^a-zA-Z0-9-_\\.]", "_");
     }
 }
